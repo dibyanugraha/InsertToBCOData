@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Threading.Tasks;
-using Simple.OData.Client;
 using System.Net;
 using HttpClient.Utils;
-using Models;
+using System.Text.Json;
+using DbReader;
 
 namespace TestInsertToBCOData
 {
@@ -11,26 +10,35 @@ namespace TestInsertToBCOData
     {
         static void Main(string[] args)
         {
-            SendData data = new SendData();
+            // ambil data dan tampung dari database
+            AdoNetReader reader = new AdoNetReader();
+            var itemYgAkanDikirim = reader.GetNotYetInterfacedItem();
 
-            var insertedItem = new Item { No = "Test Aries 04", Description = "Test 04"};
-
-            var hasil = data.SendItem(insertedItem);
-
-            Console.Out.WriteLine(hasil.StatusCode);
-
-            switch (hasil.StatusCode)
+            foreach (var item in itemYgAkanDikirim)
             {
-                case HttpStatusCode.Created:
-                    break;
-                case HttpStatusCode.BadRequest:
-                    break;
-                case HttpStatusCode.InternalServerError:
-                case HttpStatusCode.BadGateway:
-                case HttpStatusCode.GatewayTimeout:
-                    break;
-                default:
-                    break;
+                // send ke BC
+                SendData data = new SendData();
+
+                var hasil = data.SendItem(item);
+                var errorBody = JsonSerializer.Deserialize<ErrorBC>(hasil.Content.ReadAsStringAsync().Result);
+
+                // tangkap hasil
+                switch (hasil.StatusCode)
+                {
+                    case HttpStatusCode.Created:
+                        Console.Out.WriteLine(hasil.StatusCode + ". " + item.No + " berhasil diinterface");
+                        break;
+                    case HttpStatusCode.BadRequest:
+                        Console.Out.WriteLine(hasil.StatusCode + ". " + item.No + " gagal diinterface.\nError code: " + errorBody.error.code + "\nError Message: " + errorBody.error.message);
+                        break;
+                    case HttpStatusCode.InternalServerError:
+                    case HttpStatusCode.BadGateway:
+                    case HttpStatusCode.GatewayTimeout:
+                        Console.Out.WriteLine(hasil.StatusCode + ". " + item.No + " gagal diinterface.\nError code: " + errorBody.error.code + "\nError Message: " + errorBody.error.message);
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }
